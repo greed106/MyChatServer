@@ -8,7 +8,7 @@ public class ChatClient extends Connection {
 
 
     public ChatClient(Socket socket, PrintWriter writer, Scanner scanner, String uid,
-                      Scanner scannerUser, PrintWriter writerUser, ObjectOutputStream objOutServer,
+                      ObjectOutputStream objOutServer,
                       ObjectInputStream objInServer) {
         super(socket, writer, scanner, uid,objOutServer, objInServer);
     }
@@ -46,7 +46,7 @@ public class ChatClient extends Connection {
                 break;
             }
             objOutServer.writeObject(new CreatClientMessage(uid,ServerName,uid,"CreatClientMessage"));
-            ChatClient client = new ChatClient(socketUser,writerUser,scannerUser,uid,scannerUser,writerUser,objOutServer,objInServer);
+            ChatClient client = new ChatClient(socketUser,writerUser,scannerUser,uid, objOutServer,objInServer);
             System.out.println("注册成功,欢迎进入聊天室");
             client.startClient();
 
