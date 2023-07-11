@@ -1,17 +1,16 @@
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
+import java.util.HashMap;
 import java.util.Scanner;
 
 public class ChatClient extends Connection {
-    private Scanner scannerUser;
-    private PrintWriter writerUser;
+
 
     public ChatClient(Socket socket, PrintWriter writer, Scanner scanner, String uid,
                       Scanner scannerUser, PrintWriter writerUser, ObjectOutputStream objOutServer,
                       ObjectInputStream objInServer) {
         super(socket, writer, scanner, uid,objOutServer, objInServer);
-        this.scannerUser = scannerUser;
-        this.writerUser = writerUser;
     }
 
     //客户端,启动！
@@ -20,34 +19,34 @@ public class ChatClient extends Connection {
             //确定IP地址和端口
             String IPAddress = "10.21.178.175";
             int Port = 1234;
-
+            String ServerName = "服务器";
             Socket socketUser = new Socket(IPAddress,Port);
             System.out.println("已连接到服务器");
 
 
             //进行用户的初始化
-            Scanner scannerServer = new Scanner(socketUser.getInputStream());
-            PrintWriter writerServer = new PrintWriter(socketUser.getOutputStream());
+            Scanner scannerUser = new Scanner(System.in);
+            PrintWriter writerUser = new PrintWriter(System.out);
             ObjectOutputStream objOutServer = new ObjectOutputStream(socketUser.getOutputStream());
             ObjectInputStream objInServer = new ObjectInputStream(socketUser.getInputStream());
 
-            System.out.println("请输入您的uid");
-            Scanner scannerUser = new Scanner(System.in);
-            PrintWriter writerUser = new PrintWriter(System.out);
 
-            String uid = scannerUser.nextLine();
-            writerServer.println(uid);
-            writerServer.flush();
+            String uid;
+            while(true){
+                System.out.println("请输入您的uid");
+                uid = scannerUser.nextLine();
+                objOutServer.writeObject(new CheckUIDMessage(uid,ServerName,uid,"CheckUIDMessage"));
 
-
-            //如果用户名不合法的话,则抛出异常
-            if(!scannerServer.nextBoolean()){
-                System.out.println(scannerServer.nextLine());
-                throw new RenameInMapException();
+                Object obj = objInServer.readObject();
+                isErrorMessage isErrorMes = (isErrorMessage)obj;
+                if(isErrorMes.isError()){
+                    System.out.println(isErrorMes);
+                    continue;
+                }
+                break;
             }
-
-
-            ChatClient client = new ChatClient(socketUser,writerServer,scannerServer,uid,scannerUser,writerUser,objOutServer,objInServer);
+            objOutServer.writeObject(new CreatClientMessage(uid,ServerName,uid,"CreatClientMessage"));
+            ChatClient client = new ChatClient(socketUser,writerUser,scannerUser,uid,scannerUser,writerUser,objOutServer,objInServer);
             System.out.println("注册成功,欢迎进入聊天室");
             client.startClient();
 
@@ -56,9 +55,8 @@ public class ChatClient extends Connection {
         } catch (IOException e) {
             System.out.println("发生了建立clientSock异常");
             e.printStackTrace();
-        } catch (RenameInMapException e) {
-            System.out.println("发生了uid重命名异常");
-            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
         }
 
 
@@ -81,16 +79,26 @@ public class ChatClient extends Connection {
         public void run() {
             Object obj;
             try {
-                while(socket.isConnected()) {
+                CommandExecutorClient executor = new CommandExecutorClient();
+                while(!socket.isClosed()) {
                     obj = objIn.readObject();
-                    Message mes = new Message();
-                    if (obj instanceof Message)
-                        mes = (Message) obj;
-                    if (obj instanceof ChatMessage)
-                        mes = (ChatMessage) obj;
-                    System.out.println(mes);
+                    Message mes = null;
+
+
+                    //判断消息的类型
+                    if (obj instanceof ErrorMessage) {
+                        mes = (ErrorMessage) obj;
+                    }else if (obj instanceof SendChatMessage) {
+                        mes = (SendChatMessage) obj;
+                    }else if(obj instanceof ReadChatMessage){
+                        mes = (ReadChatMessage) obj;
+                    }
+
+                    if(mes != null){
+                        executor.executeCommand(mes,ChatClient.this);
+                    }
                 }
-            }catch (EOFException e){
+            }catch (EOFException | SocketException e){
                 System.out.println("与服务器的连接已断开");
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException(e);
@@ -107,30 +115,37 @@ public class ChatClient extends Connection {
         //读入用户输入后的业务逻辑
         @Override
         public void run() {
-            String message;
+            CommandExecutorClient executor = new CommandExecutorClient();
             while(!socket.isClosed()){
-                message = scannerUser.nextLine();
-                //判断是否为退出消息
-                if(!isExit(message)){
-                    try {
-                        objOut.writeObject(readMessage("ChatMessage",message));
-                        System.out.println("消息发送成功");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                String message = scanner.nextLine();
+                Message mes = null;
+
+
+
+                //判断消息的类型
+                if(message.equals("EXIT")){
+                    mes = new ExitMessage(uid,uid,"EXIT","ExitMessage");
+                }else if(message.contains("#")){
+                    mes = TransformInputToSendChatMessage("SendChatMessage",message);
+                }
+
+                if (mes != null) {
+                    executor.executeCommand(mes,ChatClient.this);
+                }else{
+                    System.out.println("无效的命令");
                 }
             }
             System.out.println("客户端已退出,欢迎您下次使用");
         }
+
     }
-    private boolean isExit(String message) {
-        boolean isEXIT = false;
-        if (message.equals("EXIT")) {
-            isEXIT = true;
+    class CommandExitClient implements Command{
+        @Override
+        public void execute(Connection client,Message message) {
             try {
-                objOut.writeObject(readMessage("Message","EXIT#"));
+                client.objOut.writeObject(message);
                 Thread.sleep(1000);
-                socket.close();
+                client.socket.close();
             } catch (IOException e) {
                 //throw new RuntimeException(e);
                 e.printStackTrace();
@@ -138,7 +153,43 @@ public class ChatClient extends Connection {
                 e.printStackTrace();
             }
         }
-        return isEXIT;
     }
+    class CommandSendChatClient implements Command{
+        @Override
+        public void execute(Connection client,Message message) {
+            try {
+                client.objOut.writeObject(message);
+                System.out.println("消息成功发送至服务器");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+    class CommandReadChatClient implements Command{
+        @Override
+        public void execute(Connection client, Message message) {
+            System.out.println(message);
+        }
+    }
+    class CommandPrintErrorClient implements Command{
+        @Override
+        public void execute(Connection client, Message message) {
+            System.out.println(message);
+        }
+    }
+    class CommandExecutorClient{
+        private HashMap<String,Command> commandMap = new HashMap<>();
+        public CommandExecutorClient(){
+            commandMap.put("ExitMessage",new CommandExitClient());
+            commandMap.put("SendChatMessage",new CommandSendChatClient());
+            commandMap.put("ReadChatMessage",new CommandReadChatClient());
+            commandMap.put("ErrorMessage",new CommandPrintErrorClient());
+        }
+        public void executeCommand(Message mes, Connection client){
+            Command command = commandMap.get(mes.getType());
+            command.execute(client,mes);
+        }
+    }
+
 
 }
