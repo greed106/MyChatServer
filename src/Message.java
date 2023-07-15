@@ -41,6 +41,11 @@ class SendChatMessage extends Message{
         super(uidSender, uidReceiver, message, type);
         this.currentTime = currentTime;
     }
+
+    public String getCurrentTime() {
+        return currentTime.toString();
+    }
+
     @Override
     public String toString(){
         return uidSender+" "+currentTime+"\n\t"+message;
