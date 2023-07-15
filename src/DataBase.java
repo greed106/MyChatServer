@@ -1,12 +1,15 @@
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.sql.*;
+import java.time.LocalDateTime;
 
 public class DataBase {
     private Connection conn;
     public DataBase(){
         conn = connectToDataBase();
+    }
+    public static void main(String[] args){
+        DataBase db =new DataBase();
+        db.addChatMessage(new SendChatMessage("1","2","test", "SendChatMessage",LocalDateTime.now()));
+
     }
     public Connection connectToDataBase(){
         Connection conn = null;
@@ -21,10 +24,11 @@ public class DataBase {
     }
     public void addUser(User user){
         try {
-            String query = "INSERT INTO UserInformation (username,password) VALUES (?,?)";
+            String query = "INSERT INTO UserInformation (uid,username,password) VALUES (?,?,?)";
             PreparedStatement pStatement = conn.prepareStatement(query);
-            pStatement.setString(1,user.username);
-            pStatement.setString(2,user.password);
+            pStatement.setInt(1,user.uid);
+            pStatement.setString(2,user.username);
+            pStatement.setString(3,user.password);
             pStatement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -44,13 +48,31 @@ public class DataBase {
         }
     }
 
+    public int getSizeofUserInformation(){
+        int totalRows = 0;
+        try {
+            String query = "SELECT COUNT(*) AS totalRows FROM userinformation";
+            PreparedStatement pStatement = conn.prepareStatement(query);
+            ResultSet rs = pStatement.executeQuery();
+
+            if (rs.next()) {
+                totalRows = rs.getInt("totalRows");
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return totalRows;
+    }
+
 
 }
 class User{
+    protected int uid;
     protected String username;
     protected String password;
 
-    public User(String username, String password) {
+    public User(int uid, String username, String password) {
+        this.uid = uid;
         this.username = username;
         this.password = password;
     }

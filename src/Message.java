@@ -1,5 +1,6 @@
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public abstract class Message implements Serializable {
     protected String uidSender;
@@ -43,12 +44,12 @@ class SendChatMessage extends Message{
     }
 
     public String getCurrentTime() {
-        return currentTime.toString();
+        return currentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     @Override
     public String toString(){
-        return uidSender+" "+currentTime+"\n\t"+message;
+        return uidSender+" "+getCurrentTime()+"\n\t"+message;
     }
 }
 class ReadChatMessage extends Message{
