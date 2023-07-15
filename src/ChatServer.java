@@ -11,7 +11,7 @@ public class ChatServer{
     //服务器的端口号
     private static final int Port = 1234;
     //储存客户端信息的映射
-    private HashMap<String,Connection> clientsMap;
+    private HashMap<String, ClientConnection> clientsMap;
     //服务器端使用的套接字
     private ServerSocket serverSock;
     private String ServerName = "服务器";
@@ -43,7 +43,7 @@ public class ChatServer{
                 ObjectInputStream objIn = new ObjectInputStream(clientSock.getInputStream());
 
                 //创建客户端的原型
-                Connection client = new Connection(clientSock,writer,scanner,objOut,objIn);
+                ClientConnection client = new ClientConnection(clientSock,writer,scanner,objOut,objIn);
 
                 Thread t = new Thread(new Handler(client));
                 t.start();
@@ -62,8 +62,8 @@ public class ChatServer{
     //并完成客户端具体操作的业务逻辑
     class Handler implements Runnable{
         //被控制的对应的客户端信息
-        Connection client;
-        public Handler(Connection client) {
+        ClientConnection client;
+        public Handler(ClientConnection client) {
             this.client = client;
         }
 
@@ -99,7 +99,7 @@ public class ChatServer{
     }
     class CommandExitAClientServer implements Command{
         @Override
-        public void execute(Connection client,Message message) {
+        public void execute(ClientConnection client, Message message) {
             try {
                 System.out.println("用户uid: " + client.returnUID() + " 正常下线");
                 clientsMap.remove(client.returnUID());
@@ -113,7 +113,7 @@ public class ChatServer{
     class CommandCheckUIDServer implements Command{
 
         @Override
-        public void execute(Connection client, Message message) {
+        public void execute(ClientConnection client, Message message) {
             try {
                 System.out.println("收到CheckUID请求");
                 //如果用户已存在的话，uid不合法
@@ -141,7 +141,7 @@ public class ChatServer{
     }
     class CommandCreatClientServer implements Command{
         @Override
-        public void execute(Connection client, Message message) {
+        public void execute(ClientConnection client, Message message) {
             client.setUid(message.getMessage());
             clientsMap.put(client.returnUID(), client);
             System.out.println("用户uid: " + client.returnUID() + " 连接到服务器");
@@ -151,9 +151,9 @@ public class ChatServer{
     class CommandChatServer implements Command{
 
         @Override
-        public void execute(Connection client, Message message) {
+        public void execute(ClientConnection client, Message message) {
             try {
-                Connection recevier = ChatServer.this.clientsMap.get(message.getUidReceiver());
+                ClientConnection recevier = ChatServer.this.clientsMap.get(message.getUidReceiver());
                 if(recevier == null){
                     throw new NotFoundinMapException();
                 }
@@ -184,7 +184,7 @@ public class ChatServer{
             commandMap.put("CreatClientMessage",new CommandCreatClientServer());
             commandMap.put("SendChatMessage",new CommandChatServer());
         }
-        public void executeCommand(Message message,Connection client){
+        public void executeCommand(Message message, ClientConnection client){
             try{
                 Command command = commandMap.get(message.getType());
                 command.execute(client,message);
@@ -203,7 +203,7 @@ public class ChatServer{
 
 
 
-class Connection{
+class ClientConnection {
     protected Socket socket;
     protected PrintWriter writer;
     protected Scanner scanner;
@@ -212,7 +212,7 @@ class Connection{
     protected ObjectInput objIn;
 
 
-    public Connection(Socket socket, PrintWriter writer, Scanner scanner, String uid, ObjectOutputStream objOut, ObjectInputStream objIn) {
+    public ClientConnection(Socket socket, PrintWriter writer, Scanner scanner, String uid, ObjectOutputStream objOut, ObjectInputStream objIn) {
         this.socket = socket;
         this.writer = writer;
         this.scanner = scanner;
@@ -221,7 +221,7 @@ class Connection{
         this.objIn = objIn;
     }
 
-    public Connection(Socket socket, PrintWriter writer, Scanner scanner, ObjectOutput objOut, ObjectInput objIn) {
+    public ClientConnection(Socket socket, PrintWriter writer, Scanner scanner, ObjectOutput objOut, ObjectInput objIn) {
         this.socket = socket;
         this.writer = writer;
         this.scanner = scanner;

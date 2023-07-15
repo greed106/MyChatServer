@@ -2,7 +2,7 @@
 
 public interface Command {
 
-    void execute(Connection client,Message message);
+    void execute(ClientConnection client, Message message);
 }
 
 

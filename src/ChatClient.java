@@ -4,7 +4,7 @@ import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Scanner;
 
-public class ChatClient extends Connection {
+public class ChatClient extends ClientConnection {
 
 
     public ChatClient(Socket socket, PrintWriter writer, Scanner scanner, String uid,
@@ -141,7 +141,7 @@ public class ChatClient extends Connection {
     }
     class CommandExitClient implements Command{
         @Override
-        public void execute(Connection client,Message message) {
+        public void execute(ClientConnection client, Message message) {
             try {
                 client.objOut.writeObject(message);
                 Thread.sleep(1000);
@@ -156,7 +156,7 @@ public class ChatClient extends Connection {
     }
     class CommandSendChatClient implements Command{
         @Override
-        public void execute(Connection client,Message message) {
+        public void execute(ClientConnection client, Message message) {
             try {
                 client.objOut.writeObject(message);
                 System.out.println("消息成功发送至服务器");
@@ -167,13 +167,13 @@ public class ChatClient extends Connection {
     }
     class CommandReadChatClient implements Command{
         @Override
-        public void execute(Connection client, Message message) {
+        public void execute(ClientConnection client, Message message) {
             System.out.println(message);
         }
     }
     class CommandPrintErrorClient implements Command{
         @Override
-        public void execute(Connection client, Message message) {
+        public void execute(ClientConnection client, Message message) {
             System.out.println(message);
         }
     }
@@ -185,7 +185,7 @@ public class ChatClient extends Connection {
             commandMap.put("ReadChatMessage",new CommandReadChatClient());
             commandMap.put("ErrorMessage",new CommandPrintErrorClient());
         }
-        public void executeCommand(Message mes, Connection client){
+        public void executeCommand(Message mes, ClientConnection client){
             Command command = commandMap.get(mes.getType());
             command.execute(client,mes);
         }
