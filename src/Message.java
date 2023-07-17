@@ -3,17 +3,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public abstract class Message implements Serializable {
-    protected String uidSender;
-    protected String uidReceiver;
+    protected String nameSender;
+    protected String nameReceiver;
     protected String message;
     protected String type;
 
-    public String getUidSender() {
-        return uidSender;
+    public String getNameSender() {
+        return nameSender;
     }
 
-    public String getUidReceiver() {
-        return uidReceiver;
+    public String getNameReceiver() {
+        return nameReceiver;
     }
 
     public String getMessage() {
@@ -24,22 +24,22 @@ public abstract class Message implements Serializable {
         return type;
     }
 
-    public Message(String uidSender, String uidReceiver, String message, String type) {
-        this.uidSender = uidSender;
-        this.uidReceiver = uidReceiver;
+    public Message(String nameSender, String nameReceiver, String message, String type) {
+        this.nameSender = nameSender;
+        this.nameReceiver = nameReceiver;
         this.message = message;
         this.type = type;
     }
     @Override
     public String toString(){
-        return uidSender+"\n\t"+message;
+        return nameSender +"\n\t"+message;
     }
 }
 class SendChatMessage extends Message{
     protected LocalDateTime currentTime;
 
-    public SendChatMessage(String uidSender, String uidReceiver, String message, String type, LocalDateTime currentTime) {
-        super(uidSender, uidReceiver, message, type);
+    public SendChatMessage(String nameSender, String nameReceiver, String message, String type, LocalDateTime currentTime) {
+        super(nameSender, nameReceiver, message, type);
         this.currentTime = currentTime;
     }
 
@@ -49,40 +49,40 @@ class SendChatMessage extends Message{
 
     @Override
     public String toString(){
-        return uidSender+" "+getCurrentTime()+"\n\t"+message;
+        return nameSender +" "+getCurrentTime()+"\n\t"+message;
     }
 }
 class ReadChatMessage extends Message{
     protected LocalDateTime currentTime;
 
-    public ReadChatMessage(String uidSender, String uidReceiver, String message, String type, LocalDateTime currentTime) {
-        super(uidSender, uidReceiver, message, type);
+    public ReadChatMessage(String nameSender, String nameReceiver, String message, String type, LocalDateTime currentTime) {
+        super(nameSender, nameReceiver, message, type);
         this.currentTime = currentTime;
     }
     public ReadChatMessage(SendChatMessage mes) {
-        super(mes.uidSender, mes.uidReceiver, mes.message, "ReadChatMessage");
+        super(mes.nameSender, mes.nameReceiver, mes.message, "ReadChatMessage");
         this.currentTime = mes.currentTime;
     }
 
     @Override
     public String toString(){
-        return uidSender+" "+currentTime+"\n\t"+message;
+        return nameSender +" "+currentTime+"\n\t"+message;
     }
 }
 class ExitMessage extends Message{
-    public ExitMessage(String uidSender, String uidReceiver, String message, String type) {
-        super(uidSender, uidReceiver, message, type);
+    public ExitMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
     }
 }
 class ErrorMessage extends Message{
-    public ErrorMessage(String uidSender, String uidReceiver, String message, String type) {
-        super(uidSender, uidReceiver, message, type);
+    public ErrorMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
     }
 }
 class isErrorMessage extends Message{
     protected boolean isError;
-    public isErrorMessage(String uidSender, String uidReceiver, String message, String type, boolean isError) {
-        super(uidSender, uidReceiver, message, type);
+    public isErrorMessage(String nameSender, String nameReceiver, String message, String type, boolean isError) {
+        super(nameSender, nameReceiver, message, type);
         this.isError = isError;
     }
 
@@ -90,14 +90,63 @@ class isErrorMessage extends Message{
         return isError;
     }
 }
-class CheckUIDMessage extends Message{
-    public CheckUIDMessage(String uidSender, String uidReceiver, String message, String type) {
-        super(uidSender, uidReceiver, message, type);
+class CheckNameMessage extends Message{
+    public CheckNameMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class CheckUserMessage extends Message{
+    public CheckUserMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
     }
 }
 class CreatClientMessage extends Message{
-    public CreatClientMessage(String uidSender, String uidReceiver, String message, String type) {
-        super(uidSender, uidReceiver, message, type);
+    public CreatClientMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class HistoryChatMessage extends Message{
+    protected String currentTime;
+
+    public HistoryChatMessage(String nameSender, String nameReceiver, String message, String type, String currentTime) {
+        super(nameSender, nameReceiver, message, type);
+        this.currentTime = currentTime;
+    }
+}
+class CreatUserMessage extends Message{
+    public CreatUserMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class GetUserMessage extends Message{
+    public GetUserMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class ReturnUserMessage extends Message{
+    User user;
+    public ReturnUserMessage(String nameSender, String nameReceiver, String message, String type, User user) {
+        super(nameSender, nameReceiver, message, type);
+        this.user = user;
     }
 
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+}
+class SignupMessage extends Message{
+
+    public SignupMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class LoginMessage extends Message{
+
+    public LoginMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
 }

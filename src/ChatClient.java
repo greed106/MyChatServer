@@ -5,49 +5,29 @@ import java.util.HashMap;
 import java.util.Scanner;
 
 public class ChatClient extends ClientConnection {
-
-
-    public ChatClient(Socket socket, PrintWriter writer, Scanner scanner, String uid,
-                      ObjectOutputStream objOutServer,
-                      ObjectInputStream objInServer) {
-        super(socket, writer, scanner, uid,objOutServer, objInServer);
+    UserClient userClient;
+    String ServerName = "服务器";
+    public void clearScreen(){
+        System.out.print("\033[H\033[2J");
     }
-
+    public ChatClient (Socket socketUser) throws IOException {
+        //进行客户端的初始化,建立输入输出流
+        super(socketUser,new PrintWriter(System.out),new Scanner(System.in),
+                new ObjectOutputStream(socketUser.getOutputStream()),
+                new ObjectInputStream(socketUser.getInputStream()));
+        userClient = new UserClient();
+    }
     //客户端,启动！
     public static void main(String[] args){
         try {
             //确定IP地址和端口
-            String IPAddress = "10.21.178.175";
+            String IPAddress = "192.168.193.128";
             int Port = 1234;
-            String ServerName = "服务器";
+
             Socket socketUser = new Socket(IPAddress,Port);
             System.out.println("已连接到服务器");
-
-
-            //进行用户的初始化
-            Scanner scannerUser = new Scanner(System.in);
-            PrintWriter writerUser = new PrintWriter(System.out);
-            ObjectOutputStream objOutServer = new ObjectOutputStream(socketUser.getOutputStream());
-            ObjectInputStream objInServer = new ObjectInputStream(socketUser.getInputStream());
-
-
-            String uid;
-            while(true){
-                System.out.println("请输入您的uid");
-                uid = scannerUser.nextLine();
-                objOutServer.writeObject(new CheckUIDMessage(uid,ServerName,uid,"CheckUIDMessage"));
-
-                Object obj = objInServer.readObject();
-                isErrorMessage isErrorMes = (isErrorMessage)obj;
-                if(isErrorMes.isError()){
-                    System.out.println(isErrorMes);
-                    continue;
-                }
-                break;
-            }
-            objOutServer.writeObject(new CreatClientMessage(uid,ServerName,uid,"CreatClientMessage"));
-            ChatClient client = new ChatClient(socketUser,writerUser,scannerUser,uid, objOutServer,objInServer);
-            System.out.println("注册成功,欢迎进入聊天室");
+            //建立客户端和服务器的连接和输入输出流
+            ChatClient client = new ChatClient(socketUser);
             client.startClient();
 
 
@@ -55,8 +35,6 @@ public class ChatClient extends ClientConnection {
         } catch (IOException e) {
             System.out.println("发生了建立clientSock异常");
             e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
         }
 
 
@@ -123,9 +101,13 @@ public class ChatClient extends ClientConnection {
 
 
                 //判断消息的类型
-                if(message.equals("EXIT")){
-                    mes = new ExitMessage(uid,uid,"EXIT","ExitMessage");
-                }else if(message.contains("#")){
+                if(message.equals("SIGNUP") && !userClient.isOnline()){
+                    mes = new SignupMessage(username,username,"SIGNUP","SignupMessage");
+                }else if(message.equals("LOGIN") && !userClient.isOnline()){
+                    mes = new LoginMessage(username,username,"LOGIN","LoginMessage");
+                } else if(message.equals("EXIT") && userClient.isOnline()){
+                    mes = new ExitMessage(username, username,"EXIT","ExitMessage");
+                }else if(message.contains("#") && userClient.isOnline()){
                     mes = TransformInputToSendChatMessage("SendChatMessage",message);
                 }
 
@@ -177,6 +159,99 @@ public class ChatClient extends ClientConnection {
             System.out.println(message);
         }
     }
+    class CommandSignupClient implements Command{
+        @Override
+        public void execute(ClientConnection client, Message message) {
+            while(true) {
+                try {
+                    creatUsername();
+                    creatPassword();
+                    objOut.writeObject(new CreatUserMessage(username,ServerName,userClient.Password,"CreatUserMessage"));
+                    break;
+                } catch (IOException | ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                } catch (RenameInMapException e) {
+                    System.out.println(e.isErrorMes);
+                }
+            }
+        }
+        public void creatPassword(){
+            String password;
+            while(true){
+                System.out.println("请输入您的password");
+                password = scanner.nextLine();
+                System.out.println("请重复输入确认密码");
+                if(password.equals(scanner.nextLine())){
+                    break;
+                }else{
+                    System.out.println("两次输入的密码不一致，请重试");
+                }
+            }
+            userClient.setPassword(password);
+        }
+        public void creatUsername() throws IOException, ClassNotFoundException, RenameInMapException {
+            System.out.println("请输入您的username");
+            username = scanner.nextLine();
+            //检查username的合法性
+            objOut.writeObject(new CheckNameMessage(username, ServerName, username, "CheckNameMessage"));
+            //读取服务器返回的检查信息
+            Object obj = objIn.readObject();
+            isErrorMessage isErrorMes = (isErrorMessage) obj;
+            //如果不合法则抛出异常
+            if (isErrorMes.isError()) {
+                throw new RenameInMapException(isErrorMes);
+            }
+            //向服务器发送创建客户端的请求
+            objOut.writeObject(new CreatClientMessage(username, ServerName, username, "CreatClientMessage"));
+            //为user添加username
+            userClient.setUsername(username);
+            //为本地客户端添加username
+            setUsername(username);
+        }
+    }
+    class CommandLoginClient implements Command{
+        @Override
+        public void execute(ClientConnection client, Message message) {
+            while(true){
+                try {
+                    uploadUser(checkUser());
+                    System.out.println("登陆成功！");
+                    break;
+                } catch (IOException | ClassNotFoundException e) {
+                    //throw new RuntimeException(e);
+                    e.printStackTrace();
+                } catch (RenameInMapException e) {
+                    System.out.println(e.isErrorMes);
+                }
+            }
+        }
+        public String checkUser() throws RenameInMapException, IOException, ClassNotFoundException {
+            System.out.println("请输入您的username");
+            String username = scanner.nextLine();
+            System.out.println("请输入您的password");
+            String password = scanner.nextLine();
+            //向服务器发送检测user的请求
+            objOut.writeObject(new CheckUserMessage(username,ServerName,username+"#"+password,"CheckUserMessage"));
+            isErrorMessage isErrorMes = (isErrorMessage) objIn.readObject();
+            if(isErrorMes.isError()){
+                throw new RenameInMapException(isErrorMes);
+            }
+            //向服务器发送创建客户端的请求
+            objOut.writeObject(new CreatClientMessage(username, ServerName, username, "CreatClientMessage"));
+            return username;
+        }
+        public void uploadUser(String username) throws IOException, ClassNotFoundException {
+            objOut.writeObject(new GetUserMessage(username,ServerName,username,"GetUserMessage"));
+            //获取服务器端的用户信息
+            ReturnUserMessage mes = (ReturnUserMessage) objIn.readObject();
+            //将本地用户的各项信息与服务器数据库同步
+            userClient.setUserClient(mes.getUser());
+            //为本地客户端添加username
+            setUsername(username);
+            //设置本地用户为在线状态
+            userClient.setOnline(true);
+        }
+    }
     class CommandExecutorClient{
         private HashMap<String,Command> commandMap = new HashMap<>();
         public CommandExecutorClient(){
@@ -184,10 +259,36 @@ public class ChatClient extends ClientConnection {
             commandMap.put("SendChatMessage",new CommandSendChatClient());
             commandMap.put("ReadChatMessage",new CommandReadChatClient());
             commandMap.put("ErrorMessage",new CommandPrintErrorClient());
+            commandMap.put("SignupMessage",new CommandSignupClient());
+            commandMap.put("LoginMessage", new CommandLoginClient());
         }
         public void executeCommand(Message mes, ClientConnection client){
             Command command = commandMap.get(mes.getType());
             command.execute(client,mes);
+        }
+    }
+    class UserClient extends User{
+        boolean isOnline;
+        public UserClient(){
+            super();
+            isOnline = false;
+        }
+
+        public boolean isOnline() {
+            return isOnline;
+        }
+
+        public void setOnline(boolean online) {
+            isOnline = online;
+        }
+
+        public void setUserClient(User user) {
+            this.uid = user.getUid();
+            this.Sex = user.getSex();
+            this.Email = user.getEmail();
+            this.Password = user.getPassword();
+            this.PhoneNumber = user.getPhoneNumber();
+            this.Username = getUsername();
         }
     }
 

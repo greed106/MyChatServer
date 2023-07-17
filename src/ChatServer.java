@@ -10,11 +10,11 @@ import java.util.Scanner;
 public class ChatServer{
     //服务器的端口号
     private static final int Port = 1234;
-    //储存客户端信息的映射
+    //储存在线的客户端连接信息的映射
     private HashMap<String, ClientConnection> clientsMap;
-    //服务器端使用的套接字
-    private ServerSocket serverSock;
-    private String ServerName = "服务器";
+    //用户信息数据库
+    private DataBase dataBase;
+    private final String ServerName = "服务器";
     //主函数
     public static void main(String[] args){
         ChatServer chatServer = new ChatServer();
@@ -26,7 +26,8 @@ public class ChatServer{
         clientsMap = new HashMap<>();
         try{
             //创建服务器使用的套接字
-            serverSock = new ServerSocket(Port);
+            //服务器端使用的套接字
+            ServerSocket serverSock = new ServerSocket(Port);
             System.out.println("服务器serverSock已建立");
 
             //进入接受并处理消息的循环之中
@@ -77,8 +78,8 @@ public class ChatServer{
                     Object obj = client.objIn.readObject();
                     Message mes = null;
                     //判断消息类型
-                    if (obj instanceof CheckUIDMessage)
-                        mes = (CheckUIDMessage) obj;
+                    if (obj instanceof CheckNameMessage)
+                        mes = (CheckNameMessage) obj;
                     if (obj instanceof ExitMessage)
                         mes = (ExitMessage) obj;
                     if (obj instanceof CreatClientMessage)
@@ -90,7 +91,7 @@ public class ChatServer{
                 }
             }catch (SocketException e) {
                 clientsMap.remove(client.returnUID());
-                System.out.println("uid: "+client.returnUID()+" 对应Socket连接已关闭");
+                System.out.println("username: "+client.returnUID()+" 对应Socket连接已关闭");
             } catch (IOException | ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -101,7 +102,7 @@ public class ChatServer{
         @Override
         public void execute(ClientConnection client, Message message) {
             try {
-                System.out.println("用户uid: " + client.returnUID() + " 正常下线");
+                System.out.println("用户username: " + client.returnUID() + " 正常下线");
                 clientsMap.remove(client.returnUID());
                 System.out.println("当前连接数："+clientsMap.size());
                 client.socket.close();
@@ -110,14 +111,14 @@ public class ChatServer{
             }
         }
     }
-    class CommandCheckUIDServer implements Command{
+    class CommandCheckNameServer implements Command{
 
         @Override
         public void execute(ClientConnection client, Message message) {
             try {
-                System.out.println("收到CheckUID请求");
-                //如果用户已存在的话，uid不合法
-                if(clientsMap.get(message.getMessage()) != null){
+                System.out.println("收到CheckName请求");
+                //如果用户已存在的话，name不合法
+                if(dataBase.isUsernameDuplicate(message.getMessage())){
                     //抛出异常
                     throw new RenameInMapException();
                 }
@@ -139,13 +140,55 @@ public class ChatServer{
             }
         }
     }
+    class CommandCheckUserServer implements Command{
+
+        @Override
+        public void execute(ClientConnection client, Message message) {
+            try {
+                System.out.println("收到了CheckUser请求");
+                String[] parts = message.getMessage().split("#", 2);
+                String username = parts[0];
+                String password = parts.length > 1 ? parts[1] : "";
+                boolean isValid = dataBase.isUserValid(username, password);
+                String errorMes = "您提供的user有效";
+                if(!isValid){
+                    System.out.println("用户提供的user无效");
+                    errorMes = "您输入的username不存在或password有误";
+                }
+                client.objOut.writeObject(new isErrorMessage(ServerName,message.getNameSender(),
+                       errorMes ,"isErrorMessage",!isValid));
+            } catch (IOException e) {
+                //throw new RuntimeException(e);
+                e.printStackTrace();
+            }
+        }
+    }
     class CommandCreatClientServer implements Command{
         @Override
         public void execute(ClientConnection client, Message message) {
-            client.setUid(message.getMessage());
+            client.setUsername(message.getMessage());
             clientsMap.put(client.returnUID(), client);
-            System.out.println("用户uid: " + client.returnUID() + " 连接到服务器");
+            System.out.println("用户username: " + client.returnUID() + " 连接到服务器");
             System.out.println("当前连接数：" + clientsMap.size());
+        }
+    }
+    class CommandCreatUserServer implements Command{
+        @Override
+        public void execute(ClientConnection client, Message message) {
+            dataBase.addUser(new User(dataBase.getSizeofUserInformation()+1, message.getNameSender(), message.getMessage()));
+            System.out.println("新的用户已创建并加入数据库");
+        }
+    }
+    class CommandGetUserServer implements Command{
+        @Override
+        public void execute(ClientConnection client, Message message) {
+            try {
+                User user = dataBase.getUserByUsername(message.getMessage());
+                client.objOut.writeObject(new ReturnUserMessage(ServerName,message.getNameSender(),"user",
+                        "ReturnUserMessage",user));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
     class CommandChatServer implements Command{
@@ -153,21 +196,21 @@ public class ChatServer{
         @Override
         public void execute(ClientConnection client, Message message) {
             try {
-                ClientConnection recevier = ChatServer.this.clientsMap.get(message.getUidReceiver());
-                if(recevier == null){
+                ClientConnection receiver = ChatServer.this.clientsMap.get(message.getNameReceiver());
+                if(receiver == null){
                     throw new NotFoundinMapException();
                 }
-                System.out.println("接收到来自 "+message.getUidSender()+" 的消息 "+message.getMessage()
-                        +" 将发送给 "+message.uidReceiver);
-                recevier.objOut.writeObject(new ReadChatMessage((SendChatMessage) message));
+                System.out.println("接收到来自 "+message.getNameSender()+" 的消息 "+message.getMessage()
+                        +" 将发送给 "+message.nameReceiver);
+                receiver.objOut.writeObject(new ReadChatMessage((SendChatMessage) message));
 
             } catch (IOException e) {
                 throw new RuntimeException(e);
             } catch (NotFoundinMapException e) {
                 try {
-                    System.out.println("发生了未找到对应用户的异常，要寻找的用户为："+message.getUidReceiver());
+                    System.out.println("发生了未找到对应用户的异常，要寻找的用户为："+message.getNameReceiver());
                     client.objOut.writeObject(new ErrorMessage(ChatServer.this.ServerName,
-                            client.returnUID(),"未找到您输入的用户uid","ErrorMessage"));
+                            client.returnUID(),"未找到您输入的用户username","ErrorMessage"));
                     e.printStackTrace();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
@@ -180,7 +223,7 @@ public class ChatServer{
         private HashMap<String,Command> commandMap = new HashMap<>();
         public CommandExecutorServer(){
             commandMap.put("ExitMessage",new CommandExitAClientServer());
-            commandMap.put("CheckUIDMessage",new CommandCheckUIDServer());
+            commandMap.put("CheckNameMessage",new CommandCheckNameServer());
             commandMap.put("CreatClientMessage",new CommandCreatClientServer());
             commandMap.put("SendChatMessage",new CommandChatServer());
         }
@@ -207,16 +250,16 @@ class ClientConnection {
     protected Socket socket;
     protected PrintWriter writer;
     protected Scanner scanner;
-    protected String uid;
+    protected String username;
     protected ObjectOutput objOut;
     protected ObjectInput objIn;
 
 
-    public ClientConnection(Socket socket, PrintWriter writer, Scanner scanner, String uid, ObjectOutputStream objOut, ObjectInputStream objIn) {
+    public ClientConnection(Socket socket, PrintWriter writer, Scanner scanner, String username, ObjectOutputStream objOut, ObjectInputStream objIn) {
         this.socket = socket;
         this.writer = writer;
         this.scanner = scanner;
-        this.uid = uid;
+        this.username = username;
         this.objOut = objOut;
         this.objIn = objIn;
     }
@@ -229,8 +272,32 @@ class ClientConnection {
         this.objIn = objIn;
     }
 
-    public void setUid(String uid) {
-        this.uid = uid;
+    public Socket getSocket() {
+        return socket;
+    }
+
+    public PrintWriter getWriter() {
+        return writer;
+    }
+
+    public Scanner getScanner() {
+        return scanner;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public ObjectOutput getObjOut() {
+        return objOut;
+    }
+
+    public ObjectInput getObjIn() {
+        return objIn;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public Message TransformInputToSendChatMessage(String type, String input){
@@ -239,7 +306,7 @@ class ClientConnection {
         String messageRec = parts.length > 1 ? parts[1] : "";
         Message mes = null;
         if(type.equals("SendChatMessage"))
-            mes = new SendChatMessage(this.uid,uidReceiver,messageRec,type,LocalDateTime.now());
+            mes = new SendChatMessage(this.username,uidReceiver,messageRec,type,LocalDateTime.now());
         return mes;
     }
 
@@ -248,7 +315,7 @@ class ClientConnection {
     }
 
     public String returnUID(){
-        return uid;
+        return username;
     }
 
 }

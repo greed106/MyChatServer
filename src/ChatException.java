@@ -6,7 +6,12 @@ class NotFoundinMapException extends Exception{
 }
 //定义在map中已经有重复的uid的异常
 class RenameInMapException extends Exception{
+    public isErrorMessage isErrorMes;
     public RenameInMapException(){
         super();
+    }
+
+    public RenameInMapException(isErrorMessage isErrorMes) {
+        this.isErrorMes = isErrorMes;
     }
 }
