@@ -1,3 +1,4 @@
+import java.io.Serializable;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.Vector;
@@ -22,7 +23,7 @@ public class DataBase {
         Connection conn = null;
         try{
             Class.forName("com.mysql.cj.jdbc.Driver");
-            conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/ChatServer","root","123456");
+            conn = DriverManager.getConnection("jdbc:mysql://10.21.229.183:3306/ChatServer","root","123456");
         } catch (SQLException | ClassNotFoundException e) {
             //throw new RuntimeException(e);
             e.printStackTrace();
@@ -241,7 +242,7 @@ public class DataBase {
 
 
 }
-class User{
+class User implements Serializable {
     //uid是指在数据库中存放的列数，具有唯一性
     protected int uid;
     //用户名是用户的标识，具有唯一性

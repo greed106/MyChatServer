@@ -24,6 +24,7 @@ public class ChatServer{
     public void startServer(){
         //创建储存客户端连接的映射
         clientsMap = new HashMap<>();
+        dataBase = new DataBase();
         try{
             //创建服务器使用的套接字
             //服务器端使用的套接字
@@ -86,6 +87,12 @@ public class ChatServer{
                         mes = (CreatClientMessage) obj;
                     if (obj instanceof SendChatMessage)
                         mes = (SendChatMessage) obj;
+                    if(obj instanceof CheckUserMessage)
+                        mes = (CheckUserMessage) obj;
+                    if(obj instanceof CreatUserMessage)
+                        mes = (CreatUserMessage) obj;
+                    if(obj instanceof GetUserMessage)
+                        mes = (GetUserMessage) obj;
                     if(mes != null)
                         executor.executeCommand(mes, client);
                 }
@@ -226,6 +233,9 @@ public class ChatServer{
             commandMap.put("CheckNameMessage",new CommandCheckNameServer());
             commandMap.put("CreatClientMessage",new CommandCreatClientServer());
             commandMap.put("SendChatMessage",new CommandChatServer());
+            commandMap.put("CheckUserMessage",new CommandCheckUserServer());
+            commandMap.put("CreatUserMessage",new CommandCreatUserServer());
+            commandMap.put("GetUserMessage",new CommandGetUserServer());
         }
         public void executeCommand(Message message, ClientConnection client){
             try{

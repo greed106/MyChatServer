@@ -21,7 +21,7 @@ public class ChatClient extends ClientConnection {
     public static void main(String[] args){
         try {
             //确定IP地址和端口
-            String IPAddress = "192.168.193.128";
+            String IPAddress = "10.21.178.175";
             int Port = 1234;
 
             Socket socketUser = new Socket(IPAddress,Port);
@@ -40,9 +40,6 @@ public class ChatClient extends ClientConnection {
 
     }
     public void startClient(){
-        //处理服务器传入的信息
-        Thread tServerReader = new Thread(new ServerReader());
-        tServerReader.start();
 
         //处理用户输入
         Thread tUserInputReader = new Thread(new UserInputReader());
@@ -105,7 +102,7 @@ public class ChatClient extends ClientConnection {
                     mes = new SignupMessage(username,username,"SIGNUP","SignupMessage");
                 }else if(message.equals("LOGIN") && !userClient.isOnline()){
                     mes = new LoginMessage(username,username,"LOGIN","LoginMessage");
-                } else if(message.equals("EXIT") && userClient.isOnline()){
+                } else if(message.equals("EXIT")){
                     mes = new ExitMessage(username, username,"EXIT","ExitMessage");
                 }else if(message.contains("#") && userClient.isOnline()){
                     mes = TransformInputToSendChatMessage("SendChatMessage",message);
@@ -167,6 +164,7 @@ public class ChatClient extends ClientConnection {
                     creatUsername();
                     creatPassword();
                     objOut.writeObject(new CreatUserMessage(username,ServerName,userClient.Password,"CreatUserMessage"));
+                    System.out.println("注册成功，请登陆");
                     break;
                 } catch (IOException | ClassNotFoundException e) {
                     throw new RuntimeException(e);
@@ -201,8 +199,8 @@ public class ChatClient extends ClientConnection {
             if (isErrorMes.isError()) {
                 throw new RenameInMapException(isErrorMes);
             }
-            //向服务器发送创建客户端的请求
-            objOut.writeObject(new CreatClientMessage(username, ServerName, username, "CreatClientMessage"));
+//            //向服务器发送创建客户端的请求
+//            objOut.writeObject(new CreatClientMessage(username, ServerName, username, "CreatClientMessage"));
             //为user添加username
             userClient.setUsername(username);
             //为本地客户端添加username
@@ -216,6 +214,11 @@ public class ChatClient extends ClientConnection {
                 try {
                     uploadUser(checkUser());
                     System.out.println("登陆成功！");
+
+                    //处理服务器传入的信息
+                    Thread tServerReader = new Thread(new ServerReader());
+                    tServerReader.start();
+
                     break;
                 } catch (IOException | ClassNotFoundException e) {
                     //throw new RuntimeException(e);
