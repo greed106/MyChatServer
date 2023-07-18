@@ -109,7 +109,7 @@ public class ChatServer{
         @Override
         public void execute(ClientConnection client, Message message) {
             try {
-                System.out.println("用户username: " + client.returnUID() + " 正常下线");
+                System.out.println("用户username: " + client.returnUID() + " 下线");
                 clientsMap.remove(client.returnUID());
                 System.out.println("当前连接数："+clientsMap.size());
                 client.socket.close();
@@ -211,18 +211,20 @@ public class ChatServer{
                         +" 将发送给 "+message.nameReceiver);
                 receiver.objOut.writeObject(new ReadChatMessage((SendChatMessage) message));
 
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                //在数据库里添加信息
+                dataBase.addChatMessage((SendChatMessage) message);
             } catch (NotFoundinMapException e) {
                 try {
                     System.out.println("发生了未找到对应用户的异常，要寻找的用户为："+message.getNameReceiver());
-                    client.objOut.writeObject(new ErrorMessage(ChatServer.this.ServerName,
-                            client.returnUID(),"未找到您输入的用户username","ErrorMessage"));
+                    client.objOut.writeObject(new isErrorMessage(ChatServer.this.ServerName,
+                            client.returnUID(),"未找到您输入的用户username","isErrorMessage",false));
                     e.printStackTrace();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }
                 //throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         }
     }

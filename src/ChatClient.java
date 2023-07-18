@@ -61,11 +61,9 @@ public class ChatClient extends ClientConnection {
 
 
                     //判断消息的类型
-                    if (obj instanceof ErrorMessage) {
-                        mes = (ErrorMessage) obj;
-                    }else if (obj instanceof SendChatMessage) {
-                        mes = (SendChatMessage) obj;
-                    }else if(obj instanceof ReadChatMessage){
+                    if (obj instanceof isErrorMessage) {
+                        mes = (isErrorMessage) obj;
+                    } else if(obj instanceof ReadChatMessage){
                         mes = (ReadChatMessage) obj;
                     }
 
@@ -261,7 +259,7 @@ public class ChatClient extends ClientConnection {
             commandMap.put("ExitMessage",new CommandExitClient());
             commandMap.put("SendChatMessage",new CommandSendChatClient());
             commandMap.put("ReadChatMessage",new CommandReadChatClient());
-            commandMap.put("ErrorMessage",new CommandPrintErrorClient());
+            commandMap.put("isErrorMessage",new CommandPrintErrorClient());
             commandMap.put("SignupMessage",new CommandSignupClient());
             commandMap.put("LoginMessage", new CommandLoginClient());
         }

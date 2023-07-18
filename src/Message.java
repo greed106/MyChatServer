@@ -64,9 +64,13 @@ class ReadChatMessage extends Message{
         this.currentTime = mes.currentTime;
     }
 
+    public String getCurrentTime() {
+        return currentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
     @Override
     public String toString(){
-        return nameSender +" "+currentTime+"\n\t"+message;
+        return nameSender +" "+getCurrentTime()+"\n\t"+message;
     }
 }
 class ExitMessage extends Message{
@@ -85,7 +89,10 @@ class isErrorMessage extends Message{
         super(nameSender, nameReceiver, message, type);
         this.isError = isError;
     }
-
+    @Override
+    public String toString(){
+        return nameSender +": "+message;
+    }
     public boolean isError() {
         return isError;
     }

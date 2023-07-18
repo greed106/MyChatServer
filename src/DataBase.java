@@ -1,6 +1,8 @@
 import java.io.Serializable;
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Vector;
 
 public class DataBase {
@@ -34,29 +36,31 @@ public class DataBase {
 
     //向数据库中添加一个新用户
     //新用户在添加时只关心uid,username,password三个字段，其他的信息在后续由用户自行设置
-    public void addUser(User user){
-        try {
-            String query = "INSERT INTO chatserver.UserInformation (uid,username,password) VALUES (?,?,?)";
-            PreparedStatement pStatement = conn.prepareStatement(query);
-            user.setUid(getSizeofUserInformation()+1);
-            pStatement.setInt(1,user.uid);
-            pStatement.setString(2,user.Username);
-            pStatement.setString(3,user.Password);
+    public void addUser(User user) {
+        String query = "INSERT INTO chatserver.UserInformation (uid, username, password) VALUES (?, ?, ?)";
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
+            user.setUid(getSizeofUserInformation() + 1);
+            pStatement.setInt(1, user.getUid());
+            pStatement.setString(2, user.getUsername());
+            pStatement.setString(3, user.getPassword());
+
             pStatement.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            //throw new RuntimeException(e);
+            e.printStackTrace();
         }
     }
 
 
+
     //添加一条新的聊天消息
-    public void addChatMessage(SendChatMessage sChatMessage){
-        try {
-            String query = "INSERT INTO chatserver.chatmessage(uidSender,uidReceiver,sentTime,content) VALUES (?,?,?,?)";
-            PreparedStatement pStatement = conn.prepareStatement(query);
-            pStatement.setString(1,sChatMessage.getNameSender());
-            pStatement.setString(2,sChatMessage.getNameReceiver());
-            pStatement.setString(3,sChatMessage.getCurrentTime());
+    public void addChatMessage(SendChatMessage sChatMessage) {
+        String query = "INSERT INTO chatserver.chatmessage(uidSender, uidReceiver, sentTime, content) VALUES (?, ?, ?, ?)";
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
+            pStatement.setString(1, sChatMessage.getNameSender());
+            pStatement.setString(2, sChatMessage.getNameReceiver());
+            pStatement.setString(3, sChatMessage.getCurrentTime());
             pStatement.setString(4, sChatMessage.getMessage());
             pStatement.executeUpdate();
         } catch (SQLException e) {
@@ -64,183 +68,262 @@ public class DataBase {
         }
     }
 
-    //返回当前数据库中的用户总数，用于为新用户分配uid
-    public int getSizeofUserInformation(){
-        int totalRows = 0;
-        try {
-            String query = "SELECT COUNT(*) AS totalRows FROM chatserver.userinformation";
-            PreparedStatement pStatement = conn.prepareStatement(query);
-            ResultSet rs = pStatement.executeQuery();
-
-            if (rs.next()) {
-                totalRows = rs.getInt("totalRows");
+    public int getUnreadCount(int uidSender, int uidReceiver) {
+        int unreadCount = 0;
+        String query = "SELECT COUNT(*) FROM chatserver.chatmessage WHERE uidSender = ? AND uidReceiver = ? AND haveRead = 0";
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
+            pStatement.setInt(1, uidSender);
+            pStatement.setInt(2, uidReceiver);
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    unreadCount = rs.getInt(1);
+                }
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+        return unreadCount;
+    }
+
+    //返回当前数据库中的用户总数，用于为新用户分配uid
+    public int getSizeofUserInformation() {
+        int totalRows = 0;
+        String query = "SELECT COUNT(*) AS totalRows FROM chatserver.userinformation";
+        try (PreparedStatement pStatement = conn.prepareStatement(query);
+             ResultSet rs = pStatement.executeQuery()) {
+            if (rs.next()) {
+                totalRows = rs.getInt("totalRows");
+            }
+        } catch (SQLException e) {
+            //throw new RuntimeException(e);
+            e.printStackTrace();
+        }
         return totalRows;
     }
+
 
     //判断对于给定的username是否出现重命名
     public boolean isUsernameDuplicate(String username) {
         boolean isDuplicate = false;
-        try {
-            // 准备查询语句
-            String query = "SELECT COUNT(*) FROM chatserver.userinformation WHERE username = ?";
-            PreparedStatement pStatement = conn.prepareStatement(query);
+        String query = "SELECT COUNT(*) FROM chatserver.userinformation WHERE username = ?";
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setString(1, username);
-            // 执行查询
-            ResultSet rs = pStatement.executeQuery();
-            // 检查结果集中的计数值
-            if (rs.next()) {
-                int count = rs.getInt(1);
-                isDuplicate = count > 0; // 如果计数值大于0，则表示存在重复的用户名
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    int count = rs.getInt(1);
+                    isDuplicate = count > 0;
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return isDuplicate; // 发生异常或查询结果为空时，默认为不重复
+        return isDuplicate;
     }
 
 
-    //分页查询两个用户间的聊天记录
-    //pageSize表示每一页的大小
-    //pageNumber表示当前要查询的页码
-    public Vector<HistoryChatMessage> getChatMessageBetweenTwoUsersWithPagination(int uid1, int uid2, int pageNumber, int pageSize){
-        Vector<HistoryChatMessage> vChatMessage = new Vector<>();
-        try {
-            String query = "SELECT * FROM chatserver.chatmessage WHERE (uidSender = ? AND uidReceiver = ?) OR (uidSender = ? AND uidReceiver = ?) ORDER BY sentTime DESC LIMIT ? OFFSET ?";
-            PreparedStatement pStatement = conn.prepareStatement(query);
+
+    /**
+     * 获取两个用户之间分页的聊天消息列表。
+     *
+     * @param uid1       用户1的UID
+     * @param uid2       用户2的UID
+     * @param pageNumber 页面号码，从1开始
+     * @param pageSize   每页的消息数量
+     * @return 聊天消息列表
+     */
+    public List<HistoryChatMessage> getChatMessageBetweenTwoUsersWithPagination(int uid1, int uid2, int pageNumber, int pageSize) {
+        List<HistoryChatMessage> chatMessages = new ArrayList<>();
+        String query = "SELECT * FROM chatserver.chatmessage WHERE (uidSender = ? AND uidReceiver = ?) " +
+                "OR (uidSender = ? AND uidReceiver = ?) ORDER BY sentTime DESC LIMIT ? OFFSET ?";
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setInt(1, uid1);
             pStatement.setInt(2, uid2);
             pStatement.setInt(3, uid2);
             pStatement.setInt(4, uid1);
             pStatement.setInt(5, pageSize);
             pStatement.setInt(6, pageSize * (pageNumber - 1));
-            ResultSet rs = pStatement.executeQuery();
-            while (rs.next()) {
-                String nameSender = getUsernameByUid(rs.getInt("uidSender"));
-                String nameReceiver = getUsernameByUid(rs.getInt("uidReceiver"));
-                vChatMessage.add(new HistoryChatMessage(nameSender,nameReceiver,rs.getString("content"),"HistoryChatMessage",rs.getString("sentTime")));
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                while (rs.next()) {
+                    String nameSender = getUsernameByUid(rs.getInt("uidSender"));
+                    String nameReceiver = getUsernameByUid(rs.getInt("uidReceiver"));
+                    chatMessages.add(new HistoryChatMessage(nameSender, nameReceiver, rs.getString("content"), "HistoryChatMessage", rs.getString("sentTime")));
+
+                    // 更新 haveRead 字段为 1
+                    int idMessage = rs.getInt("idMessage");
+                    updateHaveReadStatus(idMessage);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return vChatMessage;
+        return chatMessages;
+    }
+
+    /**
+     * 更新消息的 haveRead 字段为 1，表示已读状态。
+     *
+     * @param idMessage 消息ID
+     */
+    public void updateHaveReadStatus(int idMessage) {
+        String updateQuery = "UPDATE chatserver.chatmessage SET haveRead = 1 WHERE idMessage = ?";
+        try (PreparedStatement updateStatement = conn.prepareStatement(updateQuery)) {
+            updateStatement.setInt(1, idMessage);
+            updateStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public List<Integer> getAcceptedFriends(int uid) {
+        List<Integer> acceptedFriends = new ArrayList<>();
+        // 创建 SQL 查询语句
+        String query = "SELECT friendId FROM chatserver.friends WHERE (userId = ? OR friendId = ?) AND status = 'ACCEPTED' ";
+
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+            // 设置参数
+            stmt.setInt(1, uid);
+            stmt.setInt(2, uid);
+            // 执行查询
+            try (ResultSet rs = stmt.executeQuery()) {
+                // 获取结果
+                while (rs.next()) {
+                    int friendId = rs.getInt("friendId");
+                    acceptedFriends.add(friendId);
+                }
+            }
+        }catch (SQLException e){
+            e.printStackTrace();
+        }
+        return acceptedFriends;
     }
     public int getUidByUsername(String username) {
         int uid = 0;
-        try{
-            // 构建查询SQL
-            String query = "SELECT uid FROM chatserver.userinformation WHERE username = ?";
-            // 设置参数
-            PreparedStatement pStatement = conn.prepareStatement(query);
+        String query = "SELECT uid FROM chatserver.userinformation WHERE username = ?";
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setString(1, username);
-            // 执行查询
-            ResultSet rs = pStatement.executeQuery();
-            // 获取结果
-            if (rs.next()) {
-                uid = rs.getInt("uid");
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    uid = rs.getInt("uid");
+                }
             }
-        }catch(SQLException e){
+        } catch (SQLException e) {
             e.printStackTrace();
         }
-        return uid;
 
+        return uid;
     }
+
 
     public String getUsernameByUid(int uid) {
         String username = "";
-        try{
-            // 构建查询SQL
-            String query = "SELECT username FROM chatserver.userinformation WHERE uid = ?";
-            PreparedStatement pStatement = conn.prepareStatement(query);
-            // 设置参数
+        String query = "SELECT username FROM chatserver.userinformation WHERE uid = ?";
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setInt(1, uid);
-            // 执行查询
-            ResultSet rs = pStatement.executeQuery();
-            // 获取结果
-            if (rs.next()) {
-                username = rs.getString("username");
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    username = rs.getString("username");
+                }
             }
-        }catch (SQLException e){
+        } catch (SQLException e) {
             e.printStackTrace();
         }
         return username;
     }
 
-    //根据指定的页面大小pageSize和两人的聊天信息数返回应有的页面数
+    /**
+     * 根据指定的页面大小和两个用户的聊天信息数，计算应有的页面数。
+     *
+     * @param uid1     用户1的UID
+     * @param uid2     用户2的UID
+     * @param pageSize 页面大小
+     * @return 页面数
+     */
     public int getPageNumber(int uid1, int uid2, int pageSize) {
-        // 构建统计总记录数的SQL
         String query = "SELECT COUNT(*) AS total FROM chatserver.chatmessage WHERE (uidSender = ? AND uidReceiver = ?) OR (uidSender = ? AND uidReceiver = ?)";
         int total = 0;
-        try {
-            PreparedStatement pStatement = conn.prepareStatement(query);
-            // 设置参数
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setInt(1, uid1);
             pStatement.setInt(2, uid2);
             pStatement.setInt(3, uid2);
             pStatement.setInt(4, uid1);
-            // 执行查询
-            ResultSet rs = pStatement.executeQuery();
-            if (rs.next()) {
-                total = rs.getInt("total");
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    total = rs.getInt("total");
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        // 计算页数
+
         int pageNumber = total / pageSize;
         if (total % pageSize != 0) {
             pageNumber++;
         }
+
         return pageNumber;
     }
+
+    /**
+     * 检查给定的用户名和密码是否有效。
+     *
+     * @param username 用户名
+     * @param password 密码
+     * @return 如果用户有效，则返回true；否则返回false。
+     */
     public boolean isUserValid(String username, String password) {
+        String query = "SELECT * FROM chatserver.userinformation WHERE username = ? AND password = ?";
         boolean isValid = false;
-        try {
-            // 准备查询语句
-            String query = "SELECT * FROM chatserver.userinformation WHERE username = ? AND password = ?";
-            PreparedStatement pStatement = conn.prepareStatement(query);
-            // 设置参数
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setString(1, username);
             pStatement.setString(2, password);
-            // 执行查询
-            ResultSet rs = pStatement.executeQuery();
-            // 检查结果集是否含有记录
-            isValid = rs.next();
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                isValid = rs.next();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
         return isValid;
     }
+    /**
+     * 根据用户名获取用户信息。
+     *
+     * @param username 用户名
+     * @return 匹配的用户对象，如果找不到匹配则返回null。
+     */
     public User getUserByUsername(String username) {
+        String query = "SELECT * FROM chatserver.userinformation WHERE username = ?";
         User user = null;
-        try{
-            // 构建查询SQL
-            String query = "SELECT * FROM chatserver.userinformation WHERE username = ?";
-            // 设置参数
-            PreparedStatement pStatement = conn.prepareStatement(query);
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setString(1, username);
-            // 执行查询
-            ResultSet rs = pStatement.executeQuery();
-            // 获取结果
-            if (rs.next()) {
-                user = new User();
-                user.setUid(rs.getInt("uid"));
-                user.setUsername(rs.getString("username"));
-                user.setPassword(rs.getString("password"));
-                user.setEmail(rs.getString("email"));
-                user.setPhoneNumber(rs.getString("phonenumber"));
-                user.setSex(rs.getInt("sex"));
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    user = new User();
+                    user.setUid(rs.getInt("uid"));
+                    user.setUsername(rs.getString("username"));
+                    user.setPassword(rs.getString("password"));
+                    user.setEmail(rs.getString("email"));
+                    user.setPhoneNumber(rs.getString("phonenumber"));
+                    user.setSex(rs.getInt("sex"));
+                }
             }
-        }catch(SQLException e){
+        } catch (SQLException e) {
             e.printStackTrace();
         }
+
         return user;
     }
-
-
 }
 class User implements Serializable {
     //uid是指在数据库中存放的列数，具有唯一性
