@@ -3,7 +3,6 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Vector;
 
 public class DataBase {
     //数据库和服务器的连接
@@ -12,8 +11,6 @@ public class DataBase {
         conn = connectToDataBase();
     }
     public static void main(String[] args){
-        DataBase db =new DataBase();
-        db.addChatMessage(new SendChatMessage("1","2","test_家人们谁懂啊", "SendChatMessage",LocalDateTime.now()));
 
     }
 
@@ -35,15 +32,18 @@ public class DataBase {
 
 
     //向数据库中添加一个新用户
-    //新用户在添加时只关心uid,username,password三个字段，其他的信息在后续由用户自行设置
     public void addUser(User user) {
-        String query = "INSERT INTO chatserver.UserInformation (uid, username, password) VALUES (?, ?, ?)";
+        String query = "INSERT INTO chatserver.UserInformation (uid, username, password, email, phoneNumber, sex, age) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             user.setUid(getSizeofUserInformation() + 1);
             pStatement.setInt(1, user.getUid());
             pStatement.setString(2, user.getUsername());
             pStatement.setString(3, user.getPassword());
+            pStatement.setString(4, user.getEmail());
+            pStatement.setString(5, user.getPhoneNumber());
+            pStatement.setString(6, user.getSex());
+            pStatement.setInt(7, user.getAge());
 
             pStatement.executeUpdate();
         } catch (SQLException e) {
@@ -54,21 +54,25 @@ public class DataBase {
 
 
 
+
     //添加一条新的聊天消息
-    public void addChatMessage(SendChatMessage sChatMessage) {
-        String query = "INSERT INTO chatserver.chatmessage(uidSender, uidReceiver, sentTime, content) VALUES (?, ?, ?, ?)";
+    public void addChatMessage(SendChatMessage sChatMessage,boolean haveRead) {
+        String query = "INSERT INTO chatserver.chatmessage(uidSender, uidReceiver, sentTime, content, haveRead) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement pStatement = conn.prepareStatement(query)) {
-            pStatement.setString(1, sChatMessage.getNameSender());
-            pStatement.setString(2, sChatMessage.getNameReceiver());
+            int uidSender = getUidByUsername(sChatMessage.getNameSender());
+            int uidReceiver = getUidByUsername(sChatMessage.getNameReceiver());
+            pStatement.setInt(1, uidSender);
+            pStatement.setInt(2, uidReceiver);
             pStatement.setString(3, sChatMessage.getCurrentTime());
             pStatement.setString(4, sChatMessage.getMessage());
+            pStatement.setInt(5, haveRead ? 1 : 0);
             pStatement.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public int getUnreadCount(int uidSender, int uidReceiver) {
+    public int getUnReadCount(int uidSender, int uidReceiver) {
         int unreadCount = 0;
         String query = "SELECT COUNT(*) FROM chatserver.chatmessage WHERE uidSender = ? AND uidReceiver = ? AND haveRead = 0";
         try (PreparedStatement pStatement = conn.prepareStatement(query)) {
@@ -120,39 +124,35 @@ public class DataBase {
         }
         return isDuplicate;
     }
-
-
-
     /**
-     * 获取两个用户之间分页的聊天消息列表。
+     * 获取两个用户之间的聊天消息列表。
      *
      * @param uid1       用户1的UID
      * @param uid2       用户2的UID
-     * @param pageNumber 页面号码，从1开始
-     * @param pageSize   每页的消息数量
      * @return 聊天消息列表
      */
-    public List<HistoryChatMessage> getChatMessageBetweenTwoUsersWithPagination(int uid1, int uid2, int pageNumber, int pageSize) {
+    public List<HistoryChatMessage> getHistoryMessage(int uid1, int uid2) {
         List<HistoryChatMessage> chatMessages = new ArrayList<>();
+        int pageNumber = getPageNumber(uid1,uid2,ChatClient.HistoryPageSize);
         String query = "SELECT * FROM chatserver.chatmessage WHERE (uidSender = ? AND uidReceiver = ?) " +
-                "OR (uidSender = ? AND uidReceiver = ?) ORDER BY sentTime DESC LIMIT ? OFFSET ?";
+                "OR (uidSender = ? AND uidReceiver = ?) ";
         try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setInt(1, uid1);
             pStatement.setInt(2, uid2);
             pStatement.setInt(3, uid2);
             pStatement.setInt(4, uid1);
-            pStatement.setInt(5, pageSize);
-            pStatement.setInt(6, pageSize * (pageNumber - 1));
 
             try (ResultSet rs = pStatement.executeQuery()) {
                 while (rs.next()) {
                     String nameSender = getUsernameByUid(rs.getInt("uidSender"));
                     String nameReceiver = getUsernameByUid(rs.getInt("uidReceiver"));
-                    chatMessages.add(new HistoryChatMessage(nameSender, nameReceiver, rs.getString("content"), "HistoryChatMessage", rs.getString("sentTime")));
+                    HistoryChatMessage hMes = new HistoryChatMessage(nameSender, nameReceiver,
+                            rs.getString("content"), "HistoryChatMessage",
+                            rs.getString("sentTime"));
+                    hMes.setMessageId(rs.getInt("idMessage"));
+                    hMes.setHaveRead((rs.getInt("haveRead")) != 0);
+                    chatMessages.add(hMes);
 
-                    // 更新 haveRead 字段为 1
-                    int idMessage = rs.getInt("idMessage");
-                    updateHaveReadStatus(idMessage);
                 }
             }
         } catch (Exception e) {
@@ -175,21 +175,86 @@ public class DataBase {
             e.printStackTrace();
         }
     }
+    public void updateRequest(FriendRequest request){
+        String updateQuery = "UPDATE chatserver.friends SET status = ? WHERE relationId = ?";
+        try(PreparedStatement updateStatement = conn.prepareStatement(updateQuery)){
+            updateStatement.setString(1,request.getStatus());
+            updateStatement.setInt(2,request.getRelationId());
+            updateStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    public void deleteRequest(int relationId) {
+        String deleteQuery = "DELETE FROM chatserver.friends WHERE relationId = ?";
+        try (PreparedStatement deleteStatement = conn.prepareStatement(deleteQuery)) {
+            deleteStatement.setInt(1, relationId);
+            deleteStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    public void addRequest(FriendRequest request) {
+        String insertQuery = "INSERT INTO chatserver.friends (userId, friendId, status) VALUES (?, ?, ?)";
+        try (PreparedStatement insertStatement = conn.prepareStatement(insertQuery)) {
+            // 获取nameSender对应的userId
+            int userId = getUidByUsername(request.getNameSender());
+            // 获取nameReceiver对应的friendId
+            int friendId = getUidByUsername(request.getNameReceiver());
 
-    public List<Integer> getAcceptedFriends(int uid) {
+            insertStatement.setInt(1, userId);
+            insertStatement.setInt(2, friendId);
+            insertStatement.setString(3, request.getStatus());
+
+            insertStatement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public List<FriendRequest> getRequests(String messageSender){
+        String query = "SELECT * FROM chatserver.friends WHERE friendId = ? AND status = ?";
+        int friendId = getUidByUsername(messageSender);
+        List<FriendRequest> requests = new ArrayList<>();
+        try(PreparedStatement pStatement = conn.prepareStatement(query)){
+            pStatement.setInt(1,friendId);
+            pStatement.setString(2,"PENDING");
+            try(ResultSet rs = pStatement.executeQuery()){
+                while(rs.next()){
+                    String nameSender = getUsernameByUid(rs.getInt("userId"));
+                    int relationId = rs.getInt("relationId");
+                    String status = rs.getString("status");
+                    requests.add(new FriendRequest(nameSender,status,relationId));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return requests;
+    }
+    public List<Integer> getAcceptedFriendsUid(int uid) {
         List<Integer> acceptedFriends = new ArrayList<>();
         // 创建 SQL 查询语句
-        String query = "SELECT friendId FROM chatserver.friends WHERE (userId = ? OR friendId = ?) AND status = 'ACCEPTED' ";
+        String query1 = "SELECT friendId FROM chatserver.friends WHERE userId = ? AND status = 'ACCEPTED' ";
+        String query2 = "SELECT userId FROM chatserver.friends WHERE friendId = ? AND status = 'ACCEPTED' ";
 
-        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+        try (PreparedStatement stmt1 = conn.prepareStatement(query1);
+             PreparedStatement stmt2 = conn.prepareStatement(query2)) {
             // 设置参数
-            stmt.setInt(1, uid);
-            stmt.setInt(2, uid);
+            stmt1.setInt(1, uid);
+            stmt2.setInt(1, uid);
             // 执行查询
-            try (ResultSet rs = stmt.executeQuery()) {
+            try (ResultSet rs = stmt1.executeQuery()) {
                 // 获取结果
                 while (rs.next()) {
                     int friendId = rs.getInt("friendId");
+                    acceptedFriends.add(friendId);
+                }
+            }
+            try (ResultSet rs = stmt2.executeQuery()) {
+                // 获取结果
+                while (rs.next()) {
+                    int friendId = rs.getInt("userId");
                     acceptedFriends.add(friendId);
                 }
             }
@@ -216,8 +281,6 @@ public class DataBase {
 
         return uid;
     }
-
-
     public String getUsernameByUid(int uid) {
         String username = "";
         String query = "SELECT username FROM chatserver.userinformation WHERE uid = ?";
@@ -234,6 +297,63 @@ public class DataBase {
         }
         return username;
     }
+    public String getFriendStatus(String nameSender, String friendName) {
+        int uidSender = getUidByUsername(nameSender);
+        int uidFriend = getUidByUsername(friendName);
+
+
+        String query = "SELECT status FROM chatserver.friends " +
+                "WHERE userId = ? AND friendId = ?";
+        String status = "NONE";
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
+            pStatement.setInt(1, uidSender);
+            pStatement.setInt(2, uidFriend);
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    status = rs.getString("status");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return status;
+    }
+
+    public SearchFriend getSearchFriend(String friendName, String nameSender) {
+        String query = "SELECT * FROM chatserver.userinformation WHERE username = ?";
+        SearchFriend searchFriend = new SearchFriend();
+        boolean haveFound = false;
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
+            pStatement.setString(1, friendName);
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    // Fill the searchFriend object with the user information
+                    searchFriend.setUid(rs.getInt("uid"));
+                    searchFriend.setUsername(rs.getString("username"));
+                    searchFriend.setEmail(rs.getString("email"));
+                    searchFriend.setPhoneNumber(rs.getString("phonenumber"));
+                    searchFriend.setSex(rs.getString("sex"));
+                    searchFriend.setAge(rs.getInt("age"));
+                    haveFound = true;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        if(haveFound){
+            // Now check the friend relationship
+            String status = getFriendStatus(nameSender, friendName);
+            searchFriend.setFriend("ACCEPTED".equals(status));
+            searchFriend.setPending("PENDING".equals(status));
+        }else{
+            searchFriend = null;
+        }
+        return searchFriend;
+    }
+
 
     /**
      * 根据指定的页面大小和两个用户的聊天信息数，计算应有的页面数。
@@ -241,7 +361,7 @@ public class DataBase {
      * @param uid1     用户1的UID
      * @param uid2     用户2的UID
      * @param pageSize 页面大小
-     * @return 页面数
+     * @return 页面数(从1开始)
      */
     public int getPageNumber(int uid1, int uid2, int pageSize) {
         String query = "SELECT COUNT(*) AS total FROM chatserver.chatmessage WHERE (uidSender = ? AND uidReceiver = ?) OR (uidSender = ? AND uidReceiver = ?)";
@@ -315,7 +435,33 @@ public class DataBase {
                     user.setPassword(rs.getString("password"));
                     user.setEmail(rs.getString("email"));
                     user.setPhoneNumber(rs.getString("phonenumber"));
-                    user.setSex(rs.getInt("sex"));
+                    user.setSex(rs.getString("sex"));
+                    user.setAge(rs.getInt("age"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return user;
+    }
+    public User getUserByUid(int uid) {
+        String query = "SELECT * FROM chatserver.userinformation WHERE uid = ?";
+        User user = null;
+
+        try (PreparedStatement pStatement = conn.prepareStatement(query)) {
+            pStatement.setInt(1, uid);
+
+            try (ResultSet rs = pStatement.executeQuery()) {
+                if (rs.next()) {
+                    user = new User();
+                    user.setUid(rs.getInt("uid"));
+                    user.setUsername(rs.getString("username"));
+                    user.setPassword(rs.getString("password"));
+                    user.setEmail(rs.getString("email"));
+                    user.setPhoneNumber(rs.getString("phonenumber"));
+                    user.setSex(rs.getString("sex"));
+                    user.setAge(rs.getInt("age"));
                 }
             }
         } catch (SQLException e) {
@@ -336,8 +482,25 @@ class User implements Serializable {
     protected String Email;
     //用户的手机号
     protected String PhoneNumber;
-    //用户性别,0表示保密，1表示男，2表示女，3表示其他
-    protected int Sex;
+
+    protected String Sex;
+    protected int Age;
+
+    public User( String username, String password, String email, String phoneNumber, String sex, int age) {
+        Username = username;
+        Password = password;
+        Email = email;
+        PhoneNumber = phoneNumber;
+        Sex = sex;
+        Age = age;
+    }
+
+    public int getAge() {
+        return Age;
+    }
+    public void setAge(int age) {
+        Age = age;
+    }
 
     public int getUid() {
         return uid;
@@ -359,11 +522,11 @@ class User implements Serializable {
         PhoneNumber = phoneNumber;
     }
 
-    public int getSex() {
+    public String getSex() {
         return Sex;
     }
 
-    public void setSex(int sex) {
+    public void setSex(String sex) {
         Sex = sex;
     }
 
@@ -372,31 +535,19 @@ class User implements Serializable {
         this.Username = username;
         this.Password = password;
     }
-
-    public User(String username, String password) {
-        this.Username = username;
-        this.Password = password;
-    }
-
     public User() {}
-
-
     public void setUid(int uid) {
         this.uid = uid;
     }
-
     public String getUsername() {
         return Username;
     }
-
     public void setUsername(String username) {
         this.Username = username;
     }
-
     public String getPassword() {
         return Password;
     }
-
     public void setPassword(String password) {
         this.Password = password;
     }

@@ -1,6 +1,7 @@
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public abstract class Message implements Serializable {
     protected String nameSender;
@@ -70,19 +71,10 @@ class ReadChatMessage extends Message{
 
     @Override
     public String toString(){
-        return nameSender +" "+getCurrentTime()+"\n\t"+message;
+        return nameSender +" "+getCurrentTime()+"\n   "+message+"\n";
     }
 }
-class ExitMessage extends Message{
-    public ExitMessage(String nameSender, String nameReceiver, String message, String type) {
-        super(nameSender, nameReceiver, message, type);
-    }
-}
-class ErrorMessage extends Message{
-    public ErrorMessage(String nameSender, String nameReceiver, String message, String type) {
-        super(nameSender, nameReceiver, message, type);
-    }
-}
+
 class isErrorMessage extends Message{
     protected boolean isError;
     public isErrorMessage(String nameSender, String nameReceiver, String message, String type, boolean isError) {
@@ -114,15 +106,56 @@ class CreatClientMessage extends Message{
 }
 class HistoryChatMessage extends Message{
     protected String currentTime;
+    protected int messageId;
+    protected boolean haveRead;
 
     public HistoryChatMessage(String nameSender, String nameReceiver, String message, String type, String currentTime) {
         super(nameSender, nameReceiver, message, type);
         this.currentTime = currentTime;
     }
+    public HistoryChatMessage(SendChatMessage sMes){
+        super(sMes.getNameSender(), sMes.getNameReceiver(),
+                sMes.getMessage(),"HistoryChatMessage");
+        currentTime = sMes.getCurrentTime();
+    }
+    @Override
+    public String toString(){
+        return nameSender +" "+currentTime+"\n   "+message+"\n";
+    }
+
+    public String getCurrentTime() {
+        return currentTime;
+    }
+
+    public int getMessageId() {
+        return messageId;
+    }
+
+    public void setMessageId(int messageId) {
+        this.messageId = messageId;
+    }
+
+    public boolean haveRead() {
+        return haveRead;
+    }
+
+    public void setHaveRead(boolean haveRead) {
+        this.haveRead = haveRead;
+    }
 }
 class CreatUserMessage extends Message{
-    public CreatUserMessage(String nameSender, String nameReceiver, String message, String type) {
+    private User user;
+    public CreatUserMessage(String nameSender, String nameReceiver, String message, String type, User user) {
         super(nameSender, nameReceiver, message, type);
+        this.user = user;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }
 class GetUserMessage extends Message{
@@ -145,15 +178,88 @@ class ReturnUserMessage extends Message{
         this.user = user;
     }
 }
-class SignupMessage extends Message{
-
-    public SignupMessage(String nameSender, String nameReceiver, String message, String type) {
+class GetFriendsMessage extends Message{
+    public GetFriendsMessage(String nameSender, String nameReceiver, String message, String type) {
         super(nameSender, nameReceiver, message, type);
+    }
+}
+class ReturnFriendsMessage extends Message{
+    List<FriendUser> friends;
+    public ReturnFriendsMessage(String nameSender, String nameReceiver, String message, String type,List<FriendUser> friends) {
+        super(nameSender, nameReceiver, message, type);
+        this.friends = friends;
+    }
+
+    public List<FriendUser> getFriends() {
+        return friends;
     }
 }
 class LoginMessage extends Message{
 
     public LoginMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class StatusUpdateMessage extends Message{
+    boolean isOnline;
+
+    public StatusUpdateMessage(String nameSender, String nameReceiver, String message, String type, boolean isOnline) {
+        super(nameSender, nameReceiver, message, type);
+        this.isOnline = isOnline;
+    }
+
+    public boolean isOnline() {
+        return isOnline;
+    }
+}
+class UnreadUpdateMessage extends Message{
+    List<Integer> updateMessageId;
+
+    public UnreadUpdateMessage(String nameSender, String nameReceiver,
+                               String message, String type, List<Integer> updateMessageId) {
+        super(nameSender, nameReceiver, message, type);
+        this.updateMessageId = updateMessageId;
+    }
+
+    public List<Integer> getUpdateMessageId() {
+        return updateMessageId;
+    }
+}
+class ReturnRequestsMessage extends Message{
+    private List<FriendRequest> friendRequests;
+
+    public ReturnRequestsMessage(String nameSender, String nameReceiver, String message,
+                                 String type, List<FriendRequest> friendRequests) {
+        super(nameSender, nameReceiver, message, type);
+        this.friendRequests = friendRequests;
+    }
+    public List<FriendRequest> getFriendRequests() {
+        return friendRequests;
+    }
+}
+class GetRequestsMessage extends Message{
+
+    public GetRequestsMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class UpdateRequestMessage extends Message{
+    private FriendRequest request;
+    public UpdateRequestMessage(String nameSender, String nameReceiver, String message, String type, FriendRequest request) {
+        super(nameSender, nameReceiver, message, type);
+        this.request = request;
+    }
+    public FriendRequest getRequest() {
+        return request;
+    }
+}
+class GetSearchFriendMessage extends Message{
+    public GetSearchFriendMessage(String nameSender, String nameReceiver, String message, String type) {
+        super(nameSender, nameReceiver, message, type);
+    }
+}
+class AddRequestMessage extends Message{
+    public AddRequestMessage(String nameSender, String nameReceiver, String message, String type) {
         super(nameSender, nameReceiver, message, type);
     }
 }
