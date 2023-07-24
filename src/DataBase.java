@@ -10,13 +10,6 @@ public class DataBase {
     public DataBase(){
         conn = connectToDataBase();
     }
-    public static void main(String[] args){
-
-    }
-
-
-
-
     //连接到本地服务器
     public Connection connectToDataBase(){
         Connection conn = null;
@@ -51,9 +44,6 @@ public class DataBase {
             e.printStackTrace();
         }
     }
-
-
-
 
     //添加一条新的聊天消息
     public void addChatMessage(SendChatMessage sChatMessage,boolean haveRead) {
@@ -303,12 +293,14 @@ public class DataBase {
 
 
         String query = "SELECT status FROM chatserver.friends " +
-                "WHERE userId = ? AND friendId = ?";
+                "WHERE (userId = ? AND friendId = ?) OR (userId = ? AND friendId = ?)";
         String status = "NONE";
 
         try (PreparedStatement pStatement = conn.prepareStatement(query)) {
             pStatement.setInt(1, uidSender);
             pStatement.setInt(2, uidFriend);
+            pStatement.setInt(3,uidFriend);
+            pStatement.setInt(4,uidSender);
 
             try (ResultSet rs = pStatement.executeQuery()) {
                 if (rs.next()) {
