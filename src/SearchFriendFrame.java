@@ -119,10 +119,12 @@ class SearchFriendFrame extends JFrame {
                             "查找成功",
                             JOptionPane.YES_NO_OPTION
                     );
+
                     // 根据用户的选择执行相应的逻辑
                     if (option == JOptionPane.YES_OPTION) {
                         // 用户选择了“是”，在这里添加添加好友的逻辑
-
+                        client.executeCommandClient(new AddRequestMessage(client.getUsername(),
+                                client.getServerName(), friend.getUsername(),"AddRequestMessage"));
                     }
                 }
 

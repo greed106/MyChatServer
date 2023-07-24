@@ -191,6 +191,8 @@ public class DataBase {
             int userId = getUidByUsername(request.getNameSender());
             // 获取nameReceiver对应的friendId
             int friendId = getUidByUsername(request.getNameReceiver());
+            System.out.println("userId:"+userId);
+            System.out.println("friendId:"+friendId);
 
             insertStatement.setInt(1, userId);
             insertStatement.setInt(2, friendId);

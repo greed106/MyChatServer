@@ -121,6 +121,8 @@ public class ChatServer{
                         mes = (UpdateRequestMessage) obj;
                     if(obj instanceof GetSearchFriendMessage)
                         mes = (GetSearchFriendMessage) obj;
+                    if(obj instanceof AddRequestMessage)
+                        mes = (AddRequestMessage) obj;
                     if(mes != null)
                         executor.executeCommand(mes, client);
                     else
@@ -292,6 +294,7 @@ public class ChatServer{
             commandMap.put("GetRequestsMessage",new CommandGetRequestsServer());
             commandMap.put("UpdateRequestMessage", new CommandUpdateRequestServer());
             commandMap.put("GetSearchFriendMessage", new CommandGetSearchFriendServer());
+            commandMap.put("AddRequestMessage", new CommandAddRequestServer());
         }
         public void executeCommand(Message message, ClientConnection client){
             try{
